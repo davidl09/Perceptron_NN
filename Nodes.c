@@ -7,20 +7,20 @@
 
 void initialize_weight(struct Node* node){
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        node->weights[i] = (long double)rand()/5000;
+        node->weights[i] = (double)rand()/5000;
         node->weights[i] *= rand_1_0;
     }
 }
 
 void print_weights(struct Network* network){
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        printf("%LF", network->node1.weights[i]);
+        printf("%F", network->node1.weights[i]);
     }
 
     for (int i = 0; i < NUM_LAYERS - 1; ++i) {
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                printf("%Lf,", network->node[i][j].weights[k]);
+                printf("%f,", network->node[i][j].weights[k]);
             }
             printf("\n");
         }
@@ -40,35 +40,54 @@ void initialize_network(struct Network* network){
     initialize_weight(&network->node_out);
 }
 
-void propagate_main(struct Node* node, struct Node* target_node, int pos_x){
+void propagate_node(struct Node* node, struct Node* target_node, int pos_x){
     node->value = sigmoid(node->value);
     target_node->value = target_node->value + (node->value)*(node->weights[pos_x]);
 }
+
+void compute_gradients(struct Network* network, double error_out){
+    //compute the gradient of the output node
+    network->node_out.gradient = error_out * dx_sigmoid(network->node_out.value);
+
+    //compute the gradients of the hidden nodes
+    for (int i = NUM_LAYERS - 1; i >= 0; ++i) {
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            long double gradient = 0;
+            for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                if(i == NUM_LAYERS - 1){
+                    gradient += network->node_out.gradient * network->node_out.weights[0];
+                }else{
+                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];
+                }
+            }
+        }
+    }
+};
 
 long double predict(struct Network* network, long double predict){
 
     network->node1.value = predict;
 
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        propagate_main(&network->node1, &network->node[0][i], i);
+        propagate_node(&network->node1, &network->node[0][i], i);
     }
     for (int i = 0; i < NUM_LAYERS - 1; ++i) {
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                propagate_main(&network->node[i][j], &network->node[i+1][k], j);
+                propagate_node(&network->node[i][j], &network->node[i+1][k], j);
             }
         }
     }
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        propagate_main(&network->node[NUM_LAYERS-1][i], &network->node_out, i);
+        propagate_node(&network->node[NUM_LAYERS-1][i], &network->node_out, 0);
     }
-    return rev_sigmoid(network->node_out.value);
+    return network->node_out.value;
 }
 
-long double mse(long double validation[BATCH_SIZE], long double predictions[BATCH_SIZE]){
+long double mse(long double pred_valid[3][BATCH_SIZE]){
     long double error = 0;
     for (int i = 0; i < BATCH_SIZE; ++i) {
-        error += powl(predictions[i] - validation[i], 2);
+        error += powl(pred_valid[PRED][i] - pred_valid[VALID][i], 2);
     }
     error /= BATCH_SIZE;
     return sqrtl(error);
