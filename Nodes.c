@@ -7,28 +7,43 @@
 
 void initialize_weight(struct Node* node){
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        node->weights[i] = rand_1_0*(double)rand()/10000;
+        node->weights[i] = rand_1_0*(long double)rand()/100000;
     }
 }
 
 void print_weights(struct Network* network) {
-    printf("Weights for layer 2:\n");
+    for (int i = 0; i < NUM_LAYERS; ++i) {
+        printf("Layer %d:\n", i);
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            printf("Layer 3 Node 4 weight %d: %LF\n", j, network->node[2][4].weights[j]);
+            printf("\nNode %d:  ", j);
+            for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                printf("%.6Lf, %.6Lf", network->node[i][j].weights[k], network->node[i][j].weight_gradients[k]);
+            }
         }
-        printf("\n");
-
+        printf("\n\n");
+    }
+    for (int i = 0; i <; ++i) {
+        
+    }
 }
 
 void init_train_data(long double pred_valid[3][BATCH_SIZE]){
     for (int i = 0; i < BATCH_SIZE; ++i) {
-        pred_valid[INPUT][i] = rand_1_0*rand()%101;
-        pred_valid[VALID][i] = sinl(pred_valid[INPUT][i]);
+        pred_valid[INPUT][i] = rand_1_0*rand()%7;
+        pred_valid[VALID][i] = sinl(pred_valid[INPUT][i]) + pred_valid[INPUT][i];
     }
 }
 
 void initialize_network(struct Network* network){
     initialize_weight(&network->node1);
+
+    for (int i = 0; i < NODES_PER_LAYER; ++i) {
+        network->node1.m[i] = 0;
+        network->node1.v[i] = 0;
+        network->node_out.m[i] = 0;
+        network->node_out.v[i] = 0;
+    }
+
     network->node1.value = 0;
     for (int i = 0; i < NUM_LAYERS; ++i) {
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
@@ -37,6 +52,15 @@ void initialize_network(struct Network* network){
         }
     }
     initialize_weight(&network->node_out);
+
+    for (int i = 0; i < NUM_LAYERS; ++i) {
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                network->node[i][j].m[k] = 0;
+                network->node[i][j].v[k] = 0;
+            }
+        }
+    }
 }
 
 void propagate_node(struct Node* node, struct Node* target_node, int pos_x){
@@ -56,9 +80,9 @@ void compute_gradients(struct Network* network, long double error_out){
             long double gradient = 0;
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
                 if(i == NUM_LAYERS - 1){
-                    gradient += network->node_out.gradient * network->node_out.weights[0];
-                }else {
-                    gradient += network->node[i + 1][k].gradient * network->node[i + 1][k].weights[j];
+                    gradient += network->node_out.gradient * network->node_out.weights[j];
+                }else{
+                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];
                 }
             }
             network->node[i][j].gradient = gradient * dx_sigmoid(network->node[i][j].value);
@@ -94,6 +118,42 @@ void update_weights(struct Network* network){
         }
     }
 
+}
+
+void update_weights_adam(struct Network* network, int t){
+    //hyperparameters
+    long double beta1 = 0.9;
+    long double beta2 = 0.999;
+    long double epsilon = 1e-8;
+    long double alpha = 0.001;
+
+    //update weights for first and last nodes
+    for (int i = 0; i < NODES_PER_LAYER; ++i) {
+        network->node[0][i].m[0] = beta1 * network->node[0][i].m[0] + (1 - beta1) * network->node[0][i].weight_gradients[0];
+        network->node[0][i].v[0] = beta2 * network->node[0][i].v[0] + (1 - beta2) * powl(network->node[0][i].weight_gradients[0], 2);
+        long double m_hat = network->node[0][i].m[0] / (1 - powl(beta1, t));
+        long double v_hat = network->node[0][i].v[0] / (1 - powl(beta2, t));
+        network->node[0][i].weights[0] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
+
+        network->node_out.m[i] = beta1 * network->node_out.m[i] + (1 - beta1) * network->node_out.weight_gradients[i];
+        network->node_out.v[i] = beta2 * network->node_out.v[i] + (1 - beta2) * powl(network->node_out.weight_gradients[i], 2);
+        m_hat = network->node_out.m[i] / (1 - powl(beta1, t));
+        v_hat = network->node_out.v[i] / (1 - powl(beta2, t));
+        network->node_out.weights[i] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
+    }
+
+    //update weights for second through last hidden nodes
+    for (int i = 1; i < NUM_LAYERS; ++i) {
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                network->node[i][j].m[k] = beta1 * network->node[i][j].m[k] + (1 - beta1) * network->node[i][j].weight_gradients[k];
+                network->node[i][j].v[k] = beta2 * network->node[i][j].v[k] + (1 - beta2) * powl(network->node[i][j].weight_gradients[k], 2);
+                long double m_hat = network->node[i][j].m[k] / (1 - powl(beta1, t));
+                long double v_hat = network->node[i][j].v[k] / (1 - powl(beta2, t));
+                network->node[i][j].weights[k] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
+            }
+        }
+    }
 }
 
 long double predict(struct Network* network, long double predict){
