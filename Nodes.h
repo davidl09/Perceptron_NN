@@ -4,25 +4,26 @@
 
 #ifndef CNN_1_NODES_H
 
+
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
-#define NUM_LAYERS 3
-#define NODES_PER_LAYER 10
-#define BATCH_SIZE 30
-#define BATCH_NUM 10
-#define EPOCHS 10
-#define relu(num) num > 0 ? num : 0
-#define dx_relu(num) (num > 0 ? 1 : 0)
+#define NUM_LAYERS 2
+#define NODES_PER_LAYER 1
+#define BATCH_SIZE 1
+#define BATCH_NUM 5
+#define EPOCHS 3000
+#define relu(num) (num > 0 ? num : 0.05*num)
+#define dx_relu(num) (num > 0 ? 1 : 0.05)
 #define sigmoid(num) (1/(long double)(1+exp(-num)))
 #define dx_sigmoid(num) sigmoid(num)*(1-sigmoid(num))
 #define rev_sigmoid(num) (-1*logl(1/(double)num - 1))
+#define absl(x) (x > 0 ? x : -x)
 #define rand_1_0 (rand()%2 == 0 ? 1 : -1)
 #define INPUT 0
 #define PRED 1
 #define VALID 2
-#define LEARNING_RATE 0.001
 
 struct Node{
     long double value;
@@ -43,6 +44,7 @@ void initialize_weight(struct Node* node); //initialize randomized weights for n
 void save_weights(struct Network* network);
 void init_train_data(long double pred_valid[3][BATCH_SIZE]);
 void initialize_network(struct Network* network);
+float scale_inputs(long double train_pred_valid[3][BATCH_SIZE]);
 void propagate_node(struct Node* node, struct Node* target_node, int pos_x); //propagate one node's value to the next
 long double predict(struct Network* network, long double input);
 void compute_gradients(struct Network* network, long double error_out);

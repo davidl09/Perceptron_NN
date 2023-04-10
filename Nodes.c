@@ -4,10 +4,13 @@
 
 #include "Nodes.h"
 
+long double learning_rate = 0.01;
+
+
 
 void initialize_weight(struct Node* node){
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        node->weights[i] = rand_1_0*(long double)rand()/100000;
+        node->weights[i] = rand_1_0*sqrtl(6)/sqrtl(2);
     }
 }
 
@@ -17,20 +20,22 @@ void print_weights(struct Network* network) {
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             printf("\nNode %d:  ", j);
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                printf("%.6Lf, %.6Lf", network->node[i][j].weights[k], network->node[i][j].weight_gradients[k]);
+                printf("[%.6Lf,%.6Lf]", network->node[i][j].weights[k], network->node[i][j].weight_gradients[k]);
             }
         }
         printf("\n\n");
     }
-    for (int i = 0; i <; ++i) {
-        
+
+    printf("Output node weights/gradients:\n");
+    for (int i = 0; i <NODES_PER_LAYER; ++i) {
+        printf("[%Lf,%Lf]", network->node_out.weights[i], network->node_out.weight_gradients[i]);
     }
 }
 
 void init_train_data(long double pred_valid[3][BATCH_SIZE]){
     for (int i = 0; i < BATCH_SIZE; ++i) {
-        pred_valid[INPUT][i] = rand_1_0*rand()%7;
-        pred_valid[VALID][i] = sinl(pred_valid[INPUT][i]) + pred_valid[INPUT][i];
+        pred_valid[INPUT][i] = rand_1_0*(rand()%6300)/(float)1000;
+        pred_valid[VALID][i] = 3*(pred_valid[INPUT][i]);
     }
 }
 
@@ -63,16 +68,23 @@ void initialize_network(struct Network* network){
     }
 }
 
+float scale_inputs(long double train_pred_valid[3][BATCH_SIZE]){
+    float max_size = 0;
+    for (int i = 0; i < BATCH_SIZE; ++i) {
+        absl(train_pred_valid[INPUT][i]) > max_size ? max_size = (float)train_pred_valid[INPUT][i] : max_size; //find largest element of input array and set scale factor to scale data within range[-1, 1]
+    }
+    return max_size;
+}
+
 void propagate_node(struct Node* node, struct Node* target_node, int pos_x){
-    node->value = sigmoid(node->value);
-    target_node->value += (node->value)*(target_node->weights[pos_x]);
+    target_node->value += (relu(node->value))*(target_node->weights[pos_x]);
 }
 
 
 
 void compute_gradients(struct Network* network, long double error_out){
     //compute the gradient of the output node
-    network->node_out.gradient = error_out * dx_sigmoid(network->node_out.value);
+    network->node_out.gradient = error_out * dx_relu(network->node_out.value);
 
     //compute the gradients of the hidden nodes
     for (int i = NUM_LAYERS - 1; i >= 0; --i) {
@@ -85,7 +97,7 @@ void compute_gradients(struct Network* network, long double error_out){
                     gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];
                 }
             }
-            network->node[i][j].gradient = gradient * dx_sigmoid(network->node[i][j].value);
+            network->node[i][j].gradient = gradient * dx_relu(network->node[i][j].value);
         }
     }
 
@@ -106,14 +118,14 @@ void compute_gradients(struct Network* network, long double error_out){
 void update_weights(struct Network* network){
 
     for (int i = 0; i < NODES_PER_LAYER; ++i) {//update weights for first and last nodes
-        network->node[0][i].weights[0] -= LEARNING_RATE * network->node[0][i].weight_gradients[0];
-        network->node_out.weights[i] -= LEARNING_RATE * network->node_out.weight_gradients[i];
+        network->node[0][i].weights[0] -= learning_rate * network->node[0][i].weight_gradients[0];
+        network->node_out.weights[i] -= learning_rate * network->node_out.weight_gradients[i];
 
     }
     for (int i = 1; i < NUM_LAYERS; ++i) { //update weights for second through last hidden nodes
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                network->node[i][j].weights[k] -= LEARNING_RATE * network->node[i][j].weight_gradients[k];
+                network->node[i][j].weights[k] -= learning_rate * network->node[i][j].weight_gradients[k];
             }
         }
     }
@@ -159,6 +171,13 @@ void update_weights_adam(struct Network* network, int t){
 long double predict(struct Network* network, long double predict){
 
     network->node1.value = predict;
+
+    for (int i = 0; i < NUM_LAYERS; ++i) {
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            network->node[i][j].value = 0;
+        }
+    }
+    network->node_out.value = 0;
 
     for (int i = 0; i < NODES_PER_LAYER; ++i) {
         propagate_node(&network->node1, &network->node[0][i], 0);
