@@ -1,187 +1,115 @@
 //
-// Created by dalae on 2023-04-06.
+// Created by dalae on 2023-04-10.
 //
 
 #include "Nodes.h"
 
-
-void initialize_weight(struct Node* node){
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        node->weights[i] = rand_1_0*(long double)rand()/100000;
-    }
-}
-
-void print_weights(struct Network* network) {
-    for (int i = 0; i < NUM_LAYERS; ++i) {
-        printf("Layer %d:\n", i);
-        for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            printf("\nNode %d:  ", j);
-            for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                printf("%.6Lf, %.6Lf", network->node[i][j].weights[k], network->node[i][j].weight_gradients[k]);
-            }
-        }
-        printf("\n\n");
-    }
-    for (int i = 0; i <; ++i) {
-        
-    }
-}
+long double learning_rate;
 
 void init_train_data(long double pred_valid[3][BATCH_SIZE]){
     for (int i = 0; i < BATCH_SIZE; ++i) {
-        pred_valid[INPUT][i] = rand_1_0*rand()%7;
-        pred_valid[VALID][i] = sinl(pred_valid[INPUT][i]) + pred_valid[INPUT][i];
+        pred_valid[INPUT][i] = rand_1_0*(rand()%6300)/(float)1000;
+        pred_valid[VALID][i] = 3*(pred_valid[INPUT][i]);
+    }
+}
+
+void initialize_weight(struct Node* node){
+    for (int i = 0; i < NODES_PER_LAYER; ++i) {
+        node->weights[i] = sqrtl(6)/sqrtl(2);
     }
 }
 
 void initialize_network(struct Network* network){
-    initialize_weight(&network->node1);
-
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        network->node1.m[i] = 0;
-        network->node1.v[i] = 0;
-        network->node_out.m[i] = 0;
-        network->node_out.v[i] = 0;
-    }
-
-    network->node1.value = 0;
     for (int i = 0; i < NUM_LAYERS; ++i) {
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             initialize_weight(&network->node[i][j]);
             network->node[i][j].value = 0;
         }
     }
-    initialize_weight(&network->node_out);
+}
 
-    for (int i = 0; i < NUM_LAYERS; ++i) {
-        for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                network->node[i][j].m[k] = 0;
-                network->node[i][j].v[k] = 0;
-            }
-        }
+void scale_inputs(long double train_pred_valid[3][BATCH_SIZE]){
+    float max_size = 0;
+    for (int i = 0; i < BATCH_SIZE; ++i) {
+        absl(train_pred_valid[INPUT][i]) > max_size ? max_size = (float)train_pred_valid[INPUT][i] : max_size; //find largest element of input array and set scale factor to scale data within range[-1, 1]
+    }
+    for (int i = 0; i < BATCH_SIZE; ++i) {
+        train_pred_valid[INPUT][i] /= max_size;
     }
 }
 
 void propagate_node(struct Node* node, struct Node* target_node, int pos_x){
-    node->value = sigmoid(node->value);
-    target_node->value += (node->value)*(target_node->weights[pos_x]);
+    target_node->value += (relu(node->value))*(target_node->weights[pos_x]);
 }
 
-
-
 void compute_gradients(struct Network* network, long double error_out){
-    //compute the gradient of the output node
-    network->node_out.gradient = error_out * dx_sigmoid(network->node_out.value);
-
     //compute the gradients of the hidden nodes
-    for (int i = NUM_LAYERS - 1; i >= 0; --i) {
+
+    for (int i = 0; i < OUTPUT_LAYER_NODES; ++i) {
+        network->node[NUM_LAYERS - 1][i].gradient = error_out * dx_relu(network->node[NUM_LAYERS - 1][i].value);
+    }
+
+    long double gradient;
+    for (int i = NUM_LAYERS - 2; i > 0; --i) {//i never = 0 since input nodes have no weights
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            long double gradient = 0;
-            for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                if(i == NUM_LAYERS - 1){
-                    gradient += network->node_out.gradient * network->node_out.weights[j];
-                }else{
-                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];
+            gradient = 0;
+            if(i == 1){
+                for (int k = 0; k < INPUT_LAYER_NODES; ++k) {
+                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];//compute weights for vectors from input layer
                 }
             }
-            network->node[i][j].gradient = gradient * dx_sigmoid(network->node[i][j].value);
+            else if(i == NUM_LAYERS - 2){
+                for (int k = 0; k < OUTPUT_LAYER_NODES; ++k) {
+                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];//compute weights for vectors from output
+                }
+            }
+            else{
+                for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                    gradient += network->node[i+1][k].gradient * network->node[i+1][k].weights[j];//compute weights between hidden layers
+                }
+            }
+            network->node[i][j].gradient = gradient * dx_relu(network->node[i][j].value);
         }
     }
 
-    //compute a gradient for weights of each node
-    for (int i = NUM_LAYERS - 1; i >= 0 ; --i) {
+    for (int i = NUM_LAYERS - 2; i > 0 ; --i) {    //compute a gradient for weights of each hidden node
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
+                if(k >= INPUT_LAYER_NODES){
+                    continue;
+                }
                 network->node[i][j].weight_gradients[k] = network->node[i][j].gradient * network->node[i][j].value;
             }
         }
     }
 
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        network->node_out.weight_gradients[i] = network->node_out.gradient * network->node[NUM_LAYERS-1][i].value;
+    for (int i = 0; i < OUTPUT_LAYER_NODES; ++i) { //compute a gradient for each weight of output layer node
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            network->node[NUM_LAYERS - 1][i].weight_gradients[j] = network->node[NUM_LAYERS - 1][i].gradient * network->node[NUM_LAYERS-1][i].value;
+        }
     }
 }
 
 void update_weights(struct Network* network){
 
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {//update weights for first and last nodes
-        network->node[0][i].weights[0] -= LEARNING_RATE * network->node[0][i].weight_gradients[0];
-        network->node_out.weights[i] -= LEARNING_RATE * network->node_out.weight_gradients[i];
-
+    for (int i = 0; i < OUTPUT_LAYER_NODES; ++i) { //adjust weights for output nodes
+        for (int j = 0; j < NODES_PER_LAYER; ++j) {
+            network->node[NUM_LAYERS - 1][i].weights[j] -= learning_rate * network->node[NUM_LAYERS - 1][i].weight_gradients[j];
+        }
     }
+
+    for (int i = 0; i < NODES_PER_LAYER; ++i) { //adjust weights for first hidden layer
+        for (int j = 0; j < INPUT_LAYER_NODES; ++j) {
+            network->node[1][i].weights[j] -= learning_rate * network->node[1][i].weight_gradients[j];
+        }
+    }
+
     for (int i = 1; i < NUM_LAYERS; ++i) { //update weights for second through last hidden nodes
         for (int j = 0; j < NODES_PER_LAYER; ++j) {
             for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                network->node[i][j].weights[k] -= LEARNING_RATE * network->node[i][j].weight_gradients[k];
+                network->node[i][j].weights[k] -= learning_rate * network->node[i][j].weight_gradients[k];
             }
         }
     }
 
 }
-
-void update_weights_adam(struct Network* network, int t){
-    //hyperparameters
-    long double beta1 = 0.9;
-    long double beta2 = 0.999;
-    long double epsilon = 1e-8;
-    long double alpha = 0.001;
-
-    //update weights for first and last nodes
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        network->node[0][i].m[0] = beta1 * network->node[0][i].m[0] + (1 - beta1) * network->node[0][i].weight_gradients[0];
-        network->node[0][i].v[0] = beta2 * network->node[0][i].v[0] + (1 - beta2) * powl(network->node[0][i].weight_gradients[0], 2);
-        long double m_hat = network->node[0][i].m[0] / (1 - powl(beta1, t));
-        long double v_hat = network->node[0][i].v[0] / (1 - powl(beta2, t));
-        network->node[0][i].weights[0] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
-
-        network->node_out.m[i] = beta1 * network->node_out.m[i] + (1 - beta1) * network->node_out.weight_gradients[i];
-        network->node_out.v[i] = beta2 * network->node_out.v[i] + (1 - beta2) * powl(network->node_out.weight_gradients[i], 2);
-        m_hat = network->node_out.m[i] / (1 - powl(beta1, t));
-        v_hat = network->node_out.v[i] / (1 - powl(beta2, t));
-        network->node_out.weights[i] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
-    }
-
-    //update weights for second through last hidden nodes
-    for (int i = 1; i < NUM_LAYERS; ++i) {
-        for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                network->node[i][j].m[k] = beta1 * network->node[i][j].m[k] + (1 - beta1) * network->node[i][j].weight_gradients[k];
-                network->node[i][j].v[k] = beta2 * network->node[i][j].v[k] + (1 - beta2) * powl(network->node[i][j].weight_gradients[k], 2);
-                long double m_hat = network->node[i][j].m[k] / (1 - powl(beta1, t));
-                long double v_hat = network->node[i][j].v[k] / (1 - powl(beta2, t));
-                network->node[i][j].weights[k] -= alpha * m_hat / (sqrtl(v_hat) + epsilon);
-            }
-        }
-    }
-}
-
-long double predict(struct Network* network, long double predict){
-
-    network->node1.value = predict;
-
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        propagate_node(&network->node1, &network->node[0][i], 0);
-    }
-    for (int i = 0; i < NUM_LAYERS - 1; ++i) {
-        for (int j = 0; j < NODES_PER_LAYER; ++j) {
-            for (int k = 0; k < NODES_PER_LAYER; ++k) {
-                propagate_node(&network->node[i][j], &network->node[i+1][k], j);
-            }
-        }
-    }
-    for (int i = 0; i < NODES_PER_LAYER; ++i) {
-        propagate_node(&network->node[NUM_LAYERS-1][i], &network->node_out, i);
-    }
-    return network->node_out.value;
-}
-
-long double mse(long double pred_valid[3][BATCH_SIZE]){
-    long double error = 0;
-    for (int i = 0; i < BATCH_SIZE; ++i) {
-        error += powl(pred_valid[PRED][i] - pred_valid[VALID][i], 2);
-    }
-    error /= BATCH_SIZE;
-    return sqrtl(error);
-}
-
