@@ -1,44 +1,42 @@
 #include "Nodes.h"
 
-struct Network network;
 
 extern long double learning_rate;
+
+struct Network network;
+
 
 int main() {
     srand(time(NULL)); //initialize basics such as seed rand(), create train data array
     long double data[3][BATCH_SIZE][INPUT_LAYER_NODES];
-    long double error;
+
 
     init_train_data(data);
     initialize_network(&network);
-    learning_rate = 0.1;
+    learning_rate = 0.005;
+
 
     for (int i = 0; i < EPOCHS; ++i) { //num of times network is trained
         for (int j = 0; j < BATCH_SIZE; ++j) {
-            predict(&network, data[INPUT][j], data[PRED][j]);
-            if(OUTPUT_LAYER_NODES > 1){
-                error = 0;
-                for (int k = 0; k < OUTPUT_LAYER_NODES; ++k) { //getting mse if more than one output node
-                    error += data[PRED][j][k] - data[VALID][j][k];
-                }
-                error /= OUTPUT_LAYER_NODES;
+            predict(&network, data[INPUT][j]);
+            for (int k = 0; k <OUTPUT_LAYER_NODES; ++k) {
+                data[PRED][j][k] = network.node[NUM_LAYERS - 1][k].value; //save predictions
             }
-            else{
-                error = data[PRED][j][0] - data[VALID][j][0];
-            }
-            compute_gradients(&network, error);
+            compute_gradients(&network, data[VALID][j]);
             update_weights(&network);
-
         }
-        printf("MSE for this Epoch: %Lf\n", mse(data));
-        //init_train_data(data);
+        printf("MSE for Epoch %d: %.20Lf\n", i, mse(data));
+        if(i%10 == 0)
+            init_train_data(data);
     }
+
+    long double input;
+
     while(1){
-        long double input;
-        long double output;
         printf("Enter the input value to predict\n");
         scanf("%Lf", &input);
-        predict(&network, &input, &output);
-        printf("Input: %Lf, Prediction: %Lf\n", input, output);
+        input = fmodl(input, 1);
+        predict(&network, &input);
+        printf("Input: %Lf, Prediction: %.20Lf\n", input, network.node[NUM_LAYERS - 1][0].value);
     }
 }
