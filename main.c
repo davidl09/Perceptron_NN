@@ -1,65 +1,62 @@
 #include "Nodes.h"
 
 
-struct Network network;
-
 extern long double learning_rate;
 
+struct Network network;
 
+FILE* fp;
 
 int main() {
-    srand(time(NULL));
+    srand(time(NULL)); //initialize basics such as seed rand(), create train data array
+    long double data[3][BATCH_SIZE][INPUT_LAYER_NODES];
 
+
+    init_train_data(data);
     initialize_network(&network);
+    learning_rate = 0.0005;
 
-    long double train_pred_valid[3][BATCH_SIZE];
-    long double error;
 
-    float scale_fact;
-
-    //print_weights(&network);
-
-    init_train_data(train_pred_valid);
-    scale_fact = scale_inputs(train_pred_valid);
-    for (int i = 0; i < BATCH_SIZE; ++i) {
-        train_pred_valid[INPUT][i] /= scale_fact;
-    }
-
-    time_t start = clock();
-
-    for(int k = 0; k < EPOCHS; ++k){
-        for (int i = 0; i < BATCH_NUM; ++i) {
-            for (int j = 0; j < BATCH_SIZE; ++j) {
-                learning_rate = 0.001;
-                //learning_rate = 0.001 - 0.0001 * (k/12);
-                train_pred_valid[PRED][j] = predict(&network, train_pred_valid[INPUT][j]);
-                error = train_pred_valid[PRED][j] - train_pred_valid[VALID][j];
-                compute_gradients(&network, error);
-                update_weights(&network);
+    for (int i = 0; i < EPOCHS; ++i) { //num of times network is trained
+        for (int j = 0; j < BATCH_SIZE; ++j) {
+            predict(&network, data[INPUT][j]);
+            for (int k = 0; k <OUTPUT_LAYER_NODES; ++k) {
+                data[PRED][j][k] = network.node[NUM_LAYERS - 1][k].value; //save predictions
             }
-            //printf("MSE for this run: %Lf\n", mse(train_pred_valid));
+            compute_gradients(&network, data[VALID][j]);
+            update_weights(&network);
         }
-        printf("MSE for this run: %Lf\n", mse(train_pred_valid));
-        //init_train_data(train_pred_valid);
-        //scale_fact = scale_inputs(train_pred_valid);
-        for (int i = 0; i < BATCH_SIZE; ++i) {
-            //train_pred_valid[INPUT][i] /= scale_fact;
+        printf("MSE for Epoch %d: %.20Lf\n", i, mse(data));
+        if(i%10 == 0) {
+            init_train_data(data);
+            continue;
         }
     }
-
-
-    start = clock() - start;
-
-    //print_weights(&network);
-    printf("Runtime: %lldms\n", start);
 
     long double input;
-    while (1){
-        printf("Enter a value to predict:");
-        scanf("%Lf", &input);
-        printf("Prediction: %.10Lf\n", predict(&network, input));
+    long double prediction;
+    long double validation;
+    fp = fopen("sin.txt", "w");
+    fprintf(fp, "input,prediction");
+    for (int i = (int)(- 100.0 * M_PI); i < (int)(100 * M_PI); ++i) {
+        input = i/100.0;
+        predict(&network, &input);
+        fprintf(fp, "%.15Lf,%.15Lf\n", input, network.node[NUM_LAYERS - 1][0].value);
     }
+    fprintf(fp, "eof");
 
-    return 0;
+    while(1){
+        printf("Enter the input value to predict\n");
+        scanf("%Lf", &input);
+        while(absl(input) > M_PI){
+            if(input > 0)
+                input -= M_PI;
+            else
+                input += M_PI;
+        }
+        predict(&network, &input);
+        prediction = network.node[NUM_LAYERS - 1][0].value;
+        validation = model_func(input);
+        printf("Prediction: %.20Lf, Validation: %Lf, Error: %Lf\n", prediction, validation, prediction - validation);
+    }
 }
-
