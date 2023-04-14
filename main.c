@@ -13,7 +13,7 @@ int main() {
 
     init_train_data(data);
     initialize_network(&network);
-    learning_rate = 0.005;
+    learning_rate = 0.006;
 
 
     for (int i = 0; i < EPOCHS; ++i) { //num of times network is trained
