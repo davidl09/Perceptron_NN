@@ -9,14 +9,15 @@
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>
+#include <string.h>
 
 #define INPUT_LAYER_NODES 1
 #define OUTPUT_LAYER_NODES 1
-#define model_func(num) (sinl(3 * num))
-#define NUM_LAYERS 3 //number of layers including input and output
-#define NODES_PER_LAYER 50
-#define BATCH_SIZE 100 //training samples per batch
-#define EPOCHS 3000
+#define model_func(num) (sinl(3 * M_PI * num) + 0.5 * num - powl(num, 2))
+#define NUM_LAYERS 4 //number of layers including input and output
+#define NODES_PER_LAYER 30
+#define BATCH_SIZE 1000 //training samples per batch
+#define EPOCHS 100
 #define relu(num) (num > 0 ? num : 0)
 #define dx_relu(num) (num > 0 ? 1 : 0)
 #define rev_sigmoid(num) (-1*logl(1/(double)num - 1))
@@ -55,5 +56,6 @@ void update_weights_adam(struct Network* network, int t);
 long double error(long double pred[OUTPUT_LAYER_NODES], long double valid[OUTPUT_LAYER_NODES]); //calculate the mse of a training batch from prediction and validation arrays.
 long double mse(long double data[3][BATCH_SIZE][OUTPUT_LAYER_NODES]);
 void print_weights(struct Network* network);
+void save_testrun(struct Network* network);
 
 #endif //CNN_2_NODES_H
